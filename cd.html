@@ -1,0 +1,1084 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Boolean Expression Compiler | Front-End</title>
+  <meta name="description" content="A Boolean Expression Compiler front-end supporting relational and logical operators. Displays tokens, AST, semantic analysis, and errors." />
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet"/>
+  <style>
+    :root {
+      --bg-base:       #0a0d14;
+      --bg-surface:    #0f1420;
+      --bg-card:       #141926;
+      --bg-card2:      #1a2133;
+      --bg-hover:      #1f2840;
+      --accent-blue:   #4f8ef7;
+      --accent-cyan:   #00d4ff;
+      --accent-purple: #a855f7;
+      --accent-green:  #22d3a5;
+      --accent-yellow: #fbbf24;
+      --accent-red:    #f87171;
+      --accent-orange: #fb923c;
+      --text-primary:  #e8eaf6;
+      --text-secondary:#94a3b8;
+      --text-dim:      #4a5568;
+      --border:        rgba(79,142,247,.18);
+      --border-glow:   rgba(79,142,247,.4);
+      --radius-sm:  8px;
+      --radius-md: 12px;
+      --radius-lg: 20px;
+      --shadow-glow: 0 0 40px rgba(79,142,247,.12);
+      --shadow-card: 0 8px 32px rgba(0,0,0,.4);
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--bg-base);
+      color: var(--text-primary);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+    body::before {
+      content: '';
+      position: fixed; inset: 0; z-index: 0;
+      background-image:
+        linear-gradient(rgba(79,142,247,.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(79,142,247,.03) 1px, transparent 1px);
+      background-size: 40px 40px;
+      pointer-events: none;
+    }
+    header {
+      position: relative; z-index: 10;
+      padding: 24px 40px;
+      display: flex; align-items: center; justify-content: space-between;
+      border-bottom: 1px solid var(--border);
+      background: rgba(10,13,20,.8);
+      backdrop-filter: blur(20px);
+    }
+    .logo { display: flex; align-items: center; gap: 14px; }
+    .logo-icon {
+      width: 44px; height: 44px;
+      background: linear-gradient(135deg, var(--accent-blue), var(--accent-purple));
+      border-radius: var(--radius-sm);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 22px;
+      box-shadow: 0 0 20px rgba(79,142,247,.4);
+      animation: pulse-icon 3s ease-in-out infinite;
+    }
+    @keyframes pulse-icon {
+      0%,100% { box-shadow: 0 0 20px rgba(79,142,247,.4); }
+      50%      { box-shadow: 0 0 35px rgba(168,85,247,.6); }
+    }
+    .logo-text h1 {
+      font-size: 1.25rem; font-weight: 700;
+      background: linear-gradient(135deg, var(--accent-blue), var(--accent-cyan));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    }
+    .logo-text p { font-size: .75rem; color: var(--text-secondary); margin-top: 2px; }
+    .header-badge {
+      padding: 6px 14px; border-radius: 20px;
+      background: rgba(79,142,247,.12);
+      border: 1px solid var(--border);
+      font-size: .75rem; color: var(--accent-cyan);
+      font-weight: 500; letter-spacing: .5px;
+    }
+    main {
+      position: relative; z-index: 5;
+      max-width: 1600px; margin: 0 auto;
+      padding: 32px 40px 60px;
+    }
+    .compiler-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+    }
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 24px;
+      box-shadow: var(--shadow-card);
+      transition: border-color .3s, box-shadow .3s;
+    }
+    .card:hover { border-color: var(--border-glow); box-shadow: var(--shadow-glow); }
+    .card-header {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 18px;
+    }
+    .card-title {
+      display: flex; align-items: center; gap: 10px;
+      font-size: .95rem; font-weight: 600;
+    }
+    .card-title .dot { width: 8px; height: 8px; border-radius: 50%; }
+    .input-panel { grid-column: 1 / -1; }
+    #exprInput {
+      width: 100%; min-height: 100px;
+      background: var(--bg-base);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      color: var(--text-primary);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 1rem;
+      padding: 18px 20px;
+      resize: vertical; outline: none;
+      transition: border-color .3s, box-shadow .3s;
+      line-height: 1.6;
+      margin-bottom: 16px;
+    }
+    #exprInput:focus {
+      border-color: var(--accent-blue);
+      box-shadow: 0 0 0 3px rgba(79,142,247,.15);
+    }
+    #exprInput::placeholder { color: var(--text-dim); }
+    .operator-chips {
+      display: flex; flex-wrap: wrap; gap: 8px;
+      margin-bottom: 16px; align-items: center;
+    }
+    .chip {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 5px 12px; border-radius: 20px; cursor: pointer;
+      font-family: 'JetBrains Mono', monospace; font-size: .8rem;
+      border: 1px solid transparent;
+      transition: all .2s; user-select: none;
+    }
+    .chip:hover { transform: translateY(-2px); }
+    .chip-rel  { background: rgba(34,211,165,.1); color: var(--accent-green);  border-color: rgba(34,211,165,.3);  }
+    .chip-log  { background: rgba(79,142,247,.1); color: var(--accent-blue);   border-color: rgba(79,142,247,.3);  }
+    .chip-not  { background: rgba(251,146,60,.1);  color: var(--accent-orange); border-color: rgba(251,146,60,.3); }
+    .chip-eq   { background: rgba(168,85,247,.1); color: var(--accent-purple); border-color: rgba(168,85,247,.3); }
+    .chip-label { font-size: .7rem; font-family: 'Inter', sans-serif; color: var(--text-secondary); }
+    .action-row { display: flex; gap: 12px; align-items: center; }
+    .btn {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 12px 24px; border-radius: var(--radius-md);
+      font-size: .9rem; font-weight: 600; cursor: pointer;
+      border: none; outline: none;
+      transition: all .25s; letter-spacing: .3px;
+    }
+    .btn-primary {
+      background: linear-gradient(135deg, var(--accent-blue), var(--accent-purple));
+      color: #fff;
+      box-shadow: 0 4px 20px rgba(79,142,247,.35);
+    }
+    .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 8px 30px rgba(79,142,247,.5); }
+    .btn-primary:active { transform: translateY(0); }
+    .btn-secondary {
+      background: var(--bg-card2); color: var(--text-secondary);
+      border: 1px solid var(--border);
+    }
+    .btn-secondary:hover { background: var(--bg-hover); color: var(--text-primary); border-color: var(--border-glow); }
+    .example-btns { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 18px; }
+    .btn-example {
+      padding: 7px 14px; border-radius: var(--radius-sm);
+      font-size: .78rem; font-family: 'JetBrains Mono', monospace;
+      cursor: pointer; background: var(--bg-card2);
+      color: var(--accent-cyan); border: 1px solid var(--border);
+      transition: all .2s;
+    }
+    .btn-example:hover { background: rgba(0,212,255,.1); border-color: var(--accent-cyan); transform: translateY(-1px); }
+    .status-bar {
+      grid-column: 1 / -1;
+      display: flex; gap: 16px; flex-wrap: wrap;
+    }
+    .stat-chip {
+      display: flex; align-items: center; gap: 8px;
+      padding: 10px 18px; border-radius: var(--radius-md);
+      background: var(--bg-card); border: 1px solid var(--border);
+      font-size: .82rem;
+    }
+    .stat-chip .val { font-weight: 700; font-size: 1.1rem; font-family: 'JetBrains Mono', monospace; }
+    .stat-chip.ok   { border-color: rgba(34,211,165,.3); }
+    .stat-chip.err  { border-color: rgba(248,113,113,.3); }
+    .token-grid {
+      display: flex; flex-wrap: wrap; gap: 8px;
+      max-height: 320px; overflow-y: auto; padding-right: 4px;
+    }
+    .token-grid::-webkit-scrollbar { width: 5px; }
+    .token-grid::-webkit-scrollbar-thumb { background: var(--border); border-radius: 10px; }
+    .token-item {
+      display: flex; flex-direction: column; align-items: center;
+      gap: 4px; padding: 10px 14px; border-radius: var(--radius-sm);
+      min-width: 64px; border: 1px solid transparent;
+      animation: fadeInUp .3s ease both;
+      transition: transform .2s; cursor: default;
+    }
+    .token-item:hover { transform: translateY(-3px); }
+    @keyframes fadeInUp {
+      from { opacity:0; transform: translateY(12px); }
+      to   { opacity:1; transform: translateY(0); }
+    }
+    .token-val { font-family: 'JetBrains Mono', monospace; font-size: .9rem; font-weight: 600; }
+    .token-type { font-size: .65rem; font-weight: 500; text-transform: uppercase; letter-spacing: .8px; }
+    .token-index { display: flex; align-items: center; justify-content: center; width: 18px; height: 18px; border-radius: 50%; background: rgba(255,255,255,.06); font-size: .6rem; color: var(--text-dim); }
+    .tk-IDENTIFIER  { background: rgba(79,142,247,.12); border-color: rgba(79,142,247,.3); }
+    .tk-IDENTIFIER .token-val { color: var(--accent-blue); }
+    .tk-IDENTIFIER .token-type { color: rgba(79,142,247,.7); }
+    .tk-NUMBER      { background: rgba(34,211,165,.1); border-color: rgba(34,211,165,.25); }
+    .tk-NUMBER .token-val { color: var(--accent-green); }
+    .tk-NUMBER .token-type { color: rgba(34,211,165,.7); }
+    .tk-RELOP       { background: rgba(168,85,247,.12); border-color: rgba(168,85,247,.3); }
+    .tk-RELOP .token-val { color: var(--accent-purple); }
+    .tk-RELOP .token-type { color: rgba(168,85,247,.7); }
+    .tk-LOGOP       { background: rgba(0,212,255,.1); border-color: rgba(0,212,255,.25); }
+    .tk-LOGOP .token-val { color: var(--accent-cyan); }
+    .tk-LOGOP .token-type { color: rgba(0,212,255,.7); }
+    .tk-NOT         { background: rgba(251,146,60,.1); border-color: rgba(251,146,60,.3); }
+    .tk-NOT .token-val { color: var(--accent-orange); }
+    .tk-NOT .token-type { color: rgba(251,146,60,.7); }
+    .tk-LPAREN,.tk-RPAREN { background: rgba(251,191,36,.08); border-color: rgba(251,191,36,.25); }
+    .tk-LPAREN .token-val,.tk-RPAREN .token-val { color: var(--accent-yellow); }
+    .tk-LPAREN .token-type,.tk-RPAREN .token-type { color: rgba(251,191,36,.7); }
+    .tk-BOOL        { background: rgba(168,85,247,.12); border-color: rgba(168,85,247,.3); }
+    .tk-BOOL .token-val { color: var(--accent-purple); }
+    .tk-BOOL .token-type { color: rgba(168,85,247,.7); }
+    .tk-EOF         { background: rgba(100,116,139,.1); border-color: rgba(100,116,139,.2); }
+    .tk-EOF .token-val { color: var(--text-dim); }
+    .tk-EOF .token-type { color: var(--text-dim); }
+    .ast-panel { grid-column: 1 / -1; }
+    #astContainer {
+      overflow: auto; max-height: 460px;
+      background: var(--bg-base); border: 1px solid var(--border);
+      border-radius: var(--radius-md); padding: 24px;
+    }
+    .tree-node { display: inline-flex; flex-direction: column; align-items: center; position: relative; }
+    .node-box {
+      display: flex; flex-direction: column; align-items: center;
+      padding: 10px 16px; border-radius: var(--radius-sm);
+      border: 1px solid transparent; min-width: 70px;
+      font-family: 'JetBrains Mono', monospace;
+      transition: transform .2s, box-shadow .2s; cursor: default;
+      position: relative; z-index: 2;
+    }
+    .node-box:hover { transform: scale(1.06); }
+    .node-label { font-size: .82rem; font-weight: 600; }
+    .node-kind  { font-size: .6rem; text-transform: uppercase; letter-spacing: .8px; margin-top: 2px; }
+    .node-op    { background: rgba(168,85,247,.15); border-color: rgba(168,85,247,.4); }
+    .node-op .node-label { color: var(--accent-purple); }
+    .node-op .node-kind  { color: rgba(168,85,247,.6); }
+    .node-relop { background: rgba(34,211,165,.1); border-color: rgba(34,211,165,.3); }
+    .node-relop .node-label { color: var(--accent-green); }
+    .node-relop .node-kind  { color: rgba(34,211,165,.6); }
+    .node-not   { background: rgba(251,146,60,.1); border-color: rgba(251,146,60,.3); }
+    .node-not .node-label   { color: var(--accent-orange); }
+    .node-not .node-kind    { color: rgba(251,146,60,.6); }
+    .node-id    { background: rgba(79,142,247,.12); border-color: rgba(79,142,247,.3); }
+    .node-id .node-label { color: var(--accent-blue); }
+    .node-id .node-kind  { color: rgba(79,142,247,.6); }
+    .node-num   { background: rgba(34,211,165,.1); border-color: rgba(34,211,165,.3); }
+    .node-num .node-label { color: var(--accent-green); }
+    .node-num .node-kind  { color: rgba(34,211,165,.6); }
+    .node-bool  { background: rgba(168,85,247,.12); border-color: rgba(168,85,247,.4); }
+    .node-bool .node-label { color: var(--accent-purple); }
+    .node-bool .node-kind  { color: rgba(168,85,247,.6); }
+    .children-row { display: flex; gap: 28px; position: relative; }
+    .connector { display: flex; flex-direction: column; align-items: center; }
+    .connector-line-v { width: 2px; height: 22px; background: linear-gradient(180deg, var(--accent-blue), transparent); margin: 0 auto; }
+    .child-v-line { width: 2px; height: 22px; background: linear-gradient(180deg, var(--accent-blue), var(--accent-purple)); margin: 0 auto; }
+    .semantic-list { display: flex; flex-direction: column; gap: 10px; }
+    .sem-item {
+      display: flex; align-items: flex-start; gap: 14px;
+      padding: 14px 18px; border-radius: var(--radius-md);
+      border: 1px solid transparent;
+      animation: fadeInUp .35s ease both;
+    }
+    .sem-item.pass  { background: rgba(34,211,165,.07);  border-color: rgba(34,211,165,.25);  }
+    .sem-item.fail  { background: rgba(248,113,113,.07); border-color: rgba(248,113,113,.25); }
+    .sem-item.warn  { background: rgba(251,191,36,.07);  border-color: rgba(251,191,36,.25);  }
+    .sem-item.info  { background: rgba(79,142,247,.07);  border-color: rgba(79,142,247,.25);  }
+    .sem-icon { font-size: 1.1rem; flex-shrink: 0; margin-top: 1px; }
+    .sem-body { flex: 1; }
+    .sem-rule { font-size: .75rem; font-weight: 600; text-transform: uppercase; letter-spacing: .6px; color: var(--text-secondary); margin-bottom: 3px; }
+    .sem-msg  { font-size: .88rem; color: var(--text-primary); line-height: 1.5; }
+    .error-list { display: flex; flex-direction: column; gap: 10px; }
+    .error-item {
+      display: flex; align-items: flex-start; gap: 14px;
+      padding: 14px 18px; border-radius: var(--radius-md);
+      background: rgba(248,113,113,.06); border: 1px solid rgba(248,113,113,.25);
+      animation: fadeInUp .3s ease both;
+    }
+    .error-loc { font-family: 'JetBrains Mono', monospace; font-size: .72rem; color: var(--accent-red); background: rgba(248,113,113,.1); padding: 2px 8px; border-radius: 4px; flex-shrink: 0; margin-top: 1px; }
+    .error-msg { font-size: .88rem; color: #fca5a5; line-height: 1.5; }
+    .empty-state { display: flex; flex-direction: column; align-items: center; padding: 40px; gap: 12px; color: var(--text-dim); }
+    .empty-state .icon { font-size: 2.5rem; opacity: .4; }
+    .empty-state p { font-size: .88rem; }
+    .truth-panel { grid-column: 1 / -1; }
+    table.truth-table { width: 100%; border-collapse: collapse; font-family: 'JetBrains Mono', monospace; font-size: .82rem; }
+    table.truth-table th { background: var(--bg-card2); color: var(--text-secondary); padding: 10px 18px; text-align: center; font-weight: 600; border-bottom: 1px solid var(--border); font-size: .75rem; text-transform: uppercase; letter-spacing: .6px; }
+    table.truth-table td { padding: 10px 18px; text-align: center; border-bottom: 1px solid rgba(255,255,255,.04); transition: background .2s; }
+    table.truth-table tr:hover td { background: var(--bg-hover); }
+    table.truth-table tr:last-child td { border-bottom: none; }
+    .cell-true  { color: var(--accent-green);  font-weight: 600; }
+    .cell-false { color: var(--accent-red);    font-weight: 600; }
+    .cell-var   { color: var(--accent-blue); }
+    .cell-result{ background: rgba(168,85,247,.08) !important; }
+    .cell-result.cell-true  { color: var(--accent-purple); }
+    .cell-result.cell-false { color: var(--accent-red); }
+    .spinner { width: 16px; height: 16px; border: 2px solid rgba(79,142,247,.2); border-top-color: var(--accent-blue); border-radius: 50%; animation: spin .7s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 10px; }
+    .tabs { display: flex; gap: 4px; }
+    .tab { padding: 5px 12px; border-radius: var(--radius-sm); font-size: .78rem; font-weight: 500; cursor: pointer; background: transparent; border: 1px solid var(--border); color: var(--text-secondary); transition: all .2s; }
+    .tab.active { background: rgba(79,142,247,.15); color: var(--accent-blue); border-color: rgba(79,142,247,.4); }
+    .copy-btn { padding: 5px 12px; border-radius: var(--radius-sm); background: var(--bg-card2); border: 1px solid var(--border); color: var(--text-secondary); font-size: .75rem; cursor: pointer; transition: all .2s; }
+    .copy-btn:hover { color: var(--accent-cyan); border-color: var(--accent-cyan); }
+    .prec-table { width: 100%; border-collapse: collapse; font-size: .82rem; }
+    .prec-table th, .prec-table td { padding: 9px 16px; border-bottom: 1px solid var(--border); text-align: left; }
+    .prec-table th { color: var(--text-secondary); font-size: .72rem; text-transform: uppercase; letter-spacing: .7px; }
+    .prec-table td:first-child { font-family: 'JetBrains Mono', monospace; color: var(--accent-cyan); }
+    .prec-table tr:last-child td { border-bottom: none; }
+    .legend { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 14px; }
+    .legend-item { display: flex; align-items: center; gap: 6px; font-size: .75rem; color: var(--text-secondary); }
+    .legend-dot { width: 10px; height: 10px; border-radius: 50%; }
+    .section-label { font-size: .75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; color: var(--text-secondary); margin-bottom: 12px; }
+    @media (max-width: 900px) {
+      main { padding: 20px 16px 40px; }
+      header { padding: 16px 20px; }
+      .compiler-grid { grid-template-columns: 1fr; }
+      .input-panel, .ast-panel, .status-bar, .truth-panel { grid-column: 1; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-icon">&#9881;</div>
+    <div class="logo-text">
+      <h1>Boolean Expression Compiler</h1>
+      <p>Compiler Design &mdash; Member 4 &middot; Application Interface</p>
+    </div>
+  </div>
+  <div class="header-badge">Front-End v1.0</div>
+</header>
+
+<main>
+  <div class="compiler-grid">
+
+    <!-- INPUT PANEL -->
+    <div class="card input-panel" id="inputPanel">
+      <div class="card-header">
+        <div class="card-title">
+          <div class="dot" style="background:var(--accent-cyan)"></div>
+          Expression Input
+        </div>
+        <div style="display:flex;gap:8px">
+          <button class="copy-btn" id="copyBtn" onclick="copyExpr()">&#10697; Copy</button>
+          <button class="btn btn-secondary" onclick="clearAll()" style="padding:6px 14px;font-size:.8rem">&#10005; Clear</button>
+        </div>
+      </div>
+      <div class="section-label">Quick Insert Operators</div>
+      <div class="operator-chips">
+        <span class="chip-label">Relational:</span>
+        <span class="chip chip-rel" onclick="insertOp(' &gt; ')">&gt;</span>
+        <span class="chip chip-rel" onclick="insertOp(' &lt; ')">&lt;</span>
+        <span class="chip chip-eq"  onclick="insertOp(' == ')">==</span>
+        <span class="chip chip-eq"  onclick="insertOp(' != ')">!=</span>
+        <span class="chip chip-rel" onclick="insertOp(' &gt;= ')">&gt;=</span>
+        <span class="chip chip-rel" onclick="insertOp(' &lt;= ')">&lt;=</span>
+        <span class="chip-label">Logical:</span>
+        <span class="chip chip-log" onclick="insertOp(' &amp;&amp; ')">&amp;&amp;</span>
+        <span class="chip chip-log" onclick="insertOp(' || ')">||</span>
+        <span class="chip chip-not" onclick="insertOp('!')">!</span>
+        <span class="chip-label">Literals:</span>
+        <span class="chip chip-rel" onclick="insertOp('true')">true</span>
+        <span class="chip chip-rel" onclick="insertOp('false')">false</span>
+      </div>
+      <textarea id="exprInput" spellcheck="false"
+        placeholder="Enter a boolean expression… e.g. a > 5 &amp;&amp; !(b == 3 || c != 10)"
+        oninput="onExprChange()"></textarea>
+      <div class="section-label">Examples</div>
+      <div class="example-btns">
+        <button class="btn-example" onclick="loadExample(0)">a &gt; 5 &amp;&amp; b &lt; 10</button>
+        <button class="btn-example" onclick="loadExample(1)">!(x == y) || z != 0</button>
+        <button class="btn-example" onclick="loadExample(2)">a &gt; 1 &amp;&amp; b &gt; 2 || c &lt; 3</button>
+        <button class="btn-example" onclick="loadExample(3)">!true &amp;&amp; false || a != b</button>
+        <button class="btn-example" onclick="loadExample(4)">(p || q) &amp;&amp; !(r == s)</button>
+        <button class="btn-example" onclick="loadExample(5)">a &gt; 5 &amp;&amp; &amp;&amp; b (error)</button>
+      </div>
+      <div class="action-row">
+        <button class="btn btn-primary" id="compileBtn" onclick="compile()">
+          <span>&#9654;</span> Compile &amp; Analyze
+        </button>
+        <span style="color:var(--text-dim);font-size:.82rem" id="compileStatus"></span>
+        <span style="color:var(--text-secondary);font-size:.78rem;margin-left:auto">Ctrl+Enter to compile</span>
+      </div>
+    </div>
+
+    <!-- STATUS BAR -->
+    <div class="status-bar" id="statusBar" style="display:none">
+      <div class="stat-chip" style="border-color:rgba(79,142,247,.3)">
+        <span>&#128290;</span>
+        <span style="color:var(--text-secondary)">Tokens</span>
+        <span class="val" style="color:var(--accent-blue)" id="statTokens">0</span>
+      </div>
+      <div class="stat-chip" style="border-color:rgba(0,212,255,.3)">
+        <span>&#127807;</span>
+        <span style="color:var(--text-secondary)">AST Nodes</span>
+        <span class="val" style="color:var(--accent-cyan)" id="statNodes">0</span>
+      </div>
+      <div class="stat-chip" id="statErrChip">
+        <span id="statErrIcon">&#10003;</span>
+        <span style="color:var(--text-secondary)">Errors</span>
+        <span class="val" id="statErrors">0</span>
+      </div>
+      <div class="stat-chip ok">
+        <span>&#128300;</span>
+        <span style="color:var(--text-secondary)">Sem. Checks</span>
+        <span class="val" style="color:var(--accent-green)" id="statChecks">0</span>
+      </div>
+      <div class="stat-chip" id="statResultChip" style="margin-left:auto">
+        <span id="statResultIcon">&#8857;</span>
+        <span style="color:var(--text-secondary)">Result</span>
+        <span class="val" id="statResult">&ndash;</span>
+      </div>
+    </div>
+
+    <!-- TOKEN PANEL -->
+    <div class="card" id="tokenPanel">
+      <div class="card-header">
+        <div class="card-title">
+          <div class="dot" style="background:var(--accent-blue)"></div>
+          Lexical Analysis &mdash; Tokens
+        </div>
+        <div class="tabs">
+          <div class="tab active" id="tabVis" onclick="switchTab('vis')">Visual</div>
+          <div class="tab" id="tabTable" onclick="switchTab('table')">Table</div>
+        </div>
+      </div>
+      <div id="tokenVis">
+        <div class="token-grid" id="tokenGrid">
+          <div class="empty-state"><div class="icon">&#9672;</div><p>No tokens yet</p></div>
+        </div>
+      </div>
+      <div id="tokenTable" style="display:none;overflow:auto;max-height:320px">
+        <table style="width:100%;border-collapse:collapse;font-size:.82rem">
+          <thead>
+            <tr>
+              <th style="padding:8px 12px;text-align:left;color:var(--text-secondary);font-size:.72rem;text-transform:uppercase;letter-spacing:.6px;border-bottom:1px solid var(--border)">#</th>
+              <th style="padding:8px 12px;text-align:left;color:var(--text-secondary);font-size:.72rem;text-transform:uppercase;letter-spacing:.6px;border-bottom:1px solid var(--border)">Value</th>
+              <th style="padding:8px 12px;text-align:left;color:var(--text-secondary);font-size:.72rem;text-transform:uppercase;letter-spacing:.6px;border-bottom:1px solid var(--border)">Type</th>
+              <th style="padding:8px 12px;text-align:left;color:var(--text-secondary);font-size:.72rem;text-transform:uppercase;letter-spacing:.6px;border-bottom:1px solid var(--border)">Pos</th>
+            </tr>
+          </thead>
+          <tbody id="tokenTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- PRECEDENCE TABLE -->
+    <div class="card" id="precPanel">
+      <div class="card-header">
+        <div class="card-title">
+          <div class="dot" style="background:var(--accent-purple)"></div>
+          Operator Precedence Reference
+        </div>
+      </div>
+      <table class="prec-table">
+        <thead>
+          <tr>
+            <th>Level</th><th>Operator(s)</th><th>Type</th><th>Associativity</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span style="color:var(--accent-red);font-weight:700">1 (Highest)</span></td>
+            <td style="font-family:'JetBrains Mono',monospace;color:var(--accent-orange)">!</td>
+            <td>Logical NOT</td><td>Right-to-Left</td>
+          </tr>
+          <tr>
+            <td><span style="color:var(--accent-orange);font-weight:700">2</span></td>
+            <td style="font-family:'JetBrains Mono',monospace;color:var(--accent-purple)">&gt; &lt; == != &gt;= &lt;=</td>
+            <td>Relational / Equality</td><td>Left-to-Right</td>
+          </tr>
+          <tr>
+            <td><span style="color:var(--accent-yellow);font-weight:700">3</span></td>
+            <td style="font-family:'JetBrains Mono',monospace;color:var(--accent-cyan)">&amp;&amp;</td>
+            <td>Logical AND</td><td>Left-to-Right</td>
+          </tr>
+          <tr>
+            <td><span style="color:var(--accent-green);font-weight:700">4 (Lowest)</span></td>
+            <td style="font-family:'JetBrains Mono',monospace;color:var(--accent-cyan)">||</td>
+            <td>Logical OR</td><td>Left-to-Right</td>
+          </tr>
+          <tr>
+            <td><span style="color:var(--accent-blue);font-weight:700">Override</span></td>
+            <td style="font-family:'JetBrains Mono',monospace;color:var(--accent-yellow)">( )</td>
+            <td>Grouping</td><td>&mdash;</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- AST PANEL -->
+    <div class="card ast-panel" id="astPanel">
+      <div class="card-header">
+        <div class="card-title">
+          <div class="dot" style="background:var(--accent-green)"></div>
+          Abstract Syntax Tree (AST)
+        </div>
+        <div class="legend">
+          <div class="legend-item"><div class="legend-dot" style="background:var(--accent-purple)"></div>Logical Op</div>
+          <div class="legend-item"><div class="legend-dot" style="background:var(--accent-green)"></div>Relational Op</div>
+          <div class="legend-item"><div class="legend-dot" style="background:var(--accent-orange)"></div>NOT</div>
+          <div class="legend-item"><div class="legend-dot" style="background:var(--accent-blue)"></div>Identifier</div>
+          <div class="legend-item"><div class="legend-dot" style="background:var(--accent-cyan)"></div>Number/Bool</div>
+        </div>
+      </div>
+      <div id="astContainer">
+        <div class="empty-state"><div class="icon">&#127807;</div><p>AST will appear here after compilation</p></div>
+      </div>
+    </div>
+
+    <!-- SEMANTIC PANEL -->
+    <div class="card" id="semanticPanel">
+      <div class="card-header">
+        <div class="card-title">
+          <div class="dot" style="background:var(--accent-yellow)"></div>
+          Semantic Analysis
+        </div>
+        <span id="semPassCount" style="font-size:.78rem;color:var(--text-secondary)"></span>
+      </div>
+      <div class="semantic-list" id="semanticList">
+        <div class="empty-state"><div class="icon">&#128300;</div><p>Semantic checks will appear here</p></div>
+      </div>
+    </div>
+
+    <!-- ERROR PANEL -->
+    <div class="card" id="errorPanel">
+      <div class="card-header">
+        <div class="card-title">
+          <div class="dot" style="background:var(--accent-red)"></div>
+          Error Report
+        </div>
+        <span id="errCount" style="font-size:.78rem;color:var(--text-secondary)"></span>
+      </div>
+      <div class="error-list" id="errorList">
+        <div class="empty-state"><div class="icon">&#10003;</div><p>No errors detected</p></div>
+      </div>
+    </div>
+
+    <!-- TRUTH TABLE -->
+    <div class="card truth-panel" id="truthPanel" style="display:none">
+      <div class="card-header">
+        <div class="card-title">
+          <div class="dot" style="background:var(--accent-cyan)"></div>
+          Truth Table
+        </div>
+        <span id="truthNote" style="font-size:.78rem;color:var(--text-secondary)"></span>
+      </div>
+      <div style="overflow-x:auto">
+        <table class="truth-table" id="truthTable"><thead></thead><tbody></tbody></table>
+      </div>
+    </div>
+
+  </div><!-- /compiler-grid -->
+</main>
+
+<script>
+/* ==============================================================
+   EXAMPLES
+   ============================================================== */
+const EXAMPLES = [
+  'a > 5 && b < 10',
+  '!(x == y) || z != 0',
+  'a > 1 && b > 2 || c < 3',
+  '!true && false || a != b',
+  '(p || q) && !(r == s)',
+  'a > 5 && && b'
+];
+
+/* ==============================================================
+   LEXER
+   ============================================================== */
+const TT = {
+  NUMBER:'NUMBER', IDENTIFIER:'IDENTIFIER', BOOL:'BOOL',
+  RELOP:'RELOP', LOGOP:'LOGOP', NOT:'NOT',
+  LPAREN:'LPAREN', RPAREN:'RPAREN', EOF:'EOF', UNKNOWN:'UNKNOWN'
+};
+
+class Token {
+  constructor(type, value, pos) { this.type=type; this.value=value; this.pos=pos; }
+}
+class LexError {
+  constructor(msg, pos) { this.msg=msg; this.pos=pos; }
+}
+
+function lex(src) {
+  const tokens=[], errors=[];
+  let i=0;
+  while (i < src.length) {
+    if (/\s/.test(src[i])) { i++; continue; }
+    const two = src.slice(i,i+2);
+    if (two==='&&') { tokens.push(new Token(TT.LOGOP,'&&',i)); i+=2; continue; }
+    if (two==='||') { tokens.push(new Token(TT.LOGOP,'||',i)); i+=2; continue; }
+    if (two==='==') { tokens.push(new Token(TT.RELOP,'==',i)); i+=2; continue; }
+    if (two==='!=') { tokens.push(new Token(TT.RELOP,'!=',i)); i+=2; continue; }
+    if (two==='>=') { tokens.push(new Token(TT.RELOP,'>=',i)); i+=2; continue; }
+    if (two==='<=') { tokens.push(new Token(TT.RELOP,'<=',i)); i+=2; continue; }
+    const ch=src[i];
+    if (ch==='!') { tokens.push(new Token(TT.NOT,'!',i)); i++; continue; }
+    if (ch==='>') { tokens.push(new Token(TT.RELOP,'>',i)); i++; continue; }
+    if (ch==='<') { tokens.push(new Token(TT.RELOP,'<',i)); i++; continue; }
+    if (ch==='(') { tokens.push(new Token(TT.LPAREN,'(',i)); i++; continue; }
+    if (ch===')') { tokens.push(new Token(TT.RPAREN,')',i)); i++; continue; }
+    if (/\d/.test(ch)) {
+      let s=i,num='';
+      while (i<src.length && /[\d.]/.test(src[i])) num+=src[i++];
+      tokens.push(new Token(TT.NUMBER,num,s)); continue;
+    }
+    if (/[a-zA-Z_]/.test(ch)) {
+      let s=i,id='';
+      while (i<src.length && /\w/.test(src[i])) id+=src[i++];
+      tokens.push(new Token(id==='true'||id==='false'?TT.BOOL:TT.IDENTIFIER,id,s)); continue;
+    }
+    errors.push(new LexError("Unexpected character '"+ch+"'",i));
+    i++;
+  }
+  tokens.push(new Token(TT.EOF,'EOF',src.length));
+  return {tokens,errors};
+}
+
+/* ==============================================================
+   PARSER  (Recursive Descent)
+   Grammar:
+     expr     -> or_expr
+     or_expr  -> and_expr ('||' and_expr)*
+     and_expr -> rel_expr ('&&' rel_expr)*
+     rel_expr -> not_expr (RELOP not_expr)*
+     not_expr -> '!' not_expr | primary
+     primary  -> NUMBER | BOOL | IDENTIFIER | '(' expr ')'
+   ============================================================== */
+class ParseError {
+  constructor(msg, pos) { this.msg=msg; this.pos=pos; }
+}
+class ASTNode {
+  constructor(kind,value,left=null,right=null){this.kind=kind;this.value=value;this.left=left;this.right=right;}
+}
+
+class Parser {
+  constructor(tokens){this.tokens=tokens;this.pos=0;this.errors=[];}
+  peek(){return this.tokens[this.pos];}
+  consume(){return this.tokens[this.pos++];}
+  parse(){
+    const node=this.parseOr();
+    if(this.peek().type!==TT.EOF){
+      const t=this.peek();
+      this.errors.push(new ParseError("Unexpected token '"+t.value+"' after expression",t.pos));
+    }
+    return node;
+  }
+  parseOr(){
+    let left=this.parseAnd();
+    while(this.peek().type===TT.LOGOP && this.peek().value==='||'){
+      const op=this.consume();
+      const right=this.parseAnd();
+      left=new ASTNode('LOGOP',op.value,left,right);
+    }
+    return left;
+  }
+  parseAnd(){
+    let left=this.parseRel();
+    while(this.peek().type===TT.LOGOP && this.peek().value==='&&'){
+      const op=this.consume();
+      const right=this.parseRel();
+      left=new ASTNode('LOGOP',op.value,left,right);
+    }
+    return left;
+  }
+  parseRel(){
+    let left=this.parseNot();
+    while(this.peek().type===TT.RELOP){
+      const op=this.consume();
+      const right=this.parseNot();
+      left=new ASTNode('RELOP',op.value,left,right);
+    }
+    return left;
+  }
+  parseNot(){
+    if(this.peek().type===TT.NOT){
+      this.consume();
+      const operand=this.parseNot();
+      return new ASTNode('NOT','!',operand,null);
+    }
+    return this.parsePrimary();
+  }
+  parsePrimary(){
+    const t=this.peek();
+    if(t.type===TT.NUMBER){this.consume();return new ASTNode('NUMBER',t.value);}
+    if(t.type===TT.BOOL){this.consume();return new ASTNode('BOOL',t.value);}
+    if(t.type===TT.IDENTIFIER){this.consume();return new ASTNode('IDENT',t.value);}
+    if(t.type===TT.LPAREN){
+      this.consume();
+      const inner=this.parseOr();
+      if(this.peek().type===TT.RPAREN) this.consume();
+      else this.errors.push(new ParseError("Missing closing ')'",this.peek().pos));
+      return inner;
+    }
+    if(t.type===TT.EOF){
+      this.errors.push(new ParseError('Unexpected end of expression',t.pos));
+      return new ASTNode('ERROR','?');
+    }
+    this.errors.push(new ParseError("Unexpected token '"+t.value+"'",t.pos));
+    this.consume();
+    return new ASTNode('ERROR',t.value);
+  }
+}
+
+/* ==============================================================
+   SEMANTIC ANALYZER
+   ============================================================== */
+function analyze(ast, tokens) {
+  const checks=[];
+  const variables=new Set();
+  function collectVars(n){if(!n)return;if(n.kind==='IDENT')variables.add(n.value);collectVars(n.left);collectVars(n.right);}
+  collectVars(ast);
+
+  const real=tokens.filter(t=>t.type!==TT.EOF);
+
+  // 1. Non-empty
+  if(real.length===0){
+    checks.push({status:'fail',rule:'Non-empty Expression',msg:'Expression is empty. Provide a boolean expression.'});
+    return checks;
+  }
+
+  // 2. Consecutive binary operators
+  let consec=false;
+  for(let i=0;i<tokens.length-1;i++){
+    const a=tokens[i],b=tokens[i+1];
+    const isOp=t=>t.type===TT.RELOP||t.type===TT.LOGOP;
+    if(isOp(a)&&isOp(b)){consec=true;break;}
+  }
+  checks.push(consec
+    ?{status:'fail',rule:'No Consecutive Operators',msg:"Consecutive operators found (e.g. '&& &&'). Each operator must separate two operands."}
+    :{status:'pass',rule:'No Consecutive Operators',msg:'No consecutive binary operators detected.'});
+
+  // 3. Balanced parentheses
+  let depth=0,unbal=false,maxD=0;
+  for(const t of tokens){
+    if(t.type===TT.LPAREN){depth++;maxD=Math.max(maxD,depth);}
+    if(t.type===TT.RPAREN){depth--;if(depth<0){unbal=true;break;}}
+  }
+  checks.push((depth!==0||unbal)
+    ?{status:'fail',rule:'Balanced Parentheses',msg:"Parentheses are unbalanced (net depth: "+depth+"). Every '(' needs a matching ')'."}
+    :{status:'pass',rule:'Balanced Parentheses',msg:'Parentheses are balanced. Max nesting depth: '+maxD+'.'});
+
+  // 4. NOT operand validity
+  let badNot=false;
+  for(let i=0;i<tokens.length-1;i++){
+    if(tokens[i].type===TT.NOT){
+      const next=tokens[i+1];
+      if(![TT.IDENTIFIER,TT.BOOL,TT.LPAREN,TT.NOT,TT.NUMBER].includes(next.type)){badNot=true;break;}
+    }
+  }
+  checks.push(badNot
+    ?{status:'fail',rule:'NOT Operator Usage',msg:"'!' must be followed by an identifier, literal, '!', or '('."}
+    :{status:'pass',rule:'NOT Operator Usage',msg:"All '!' operators are correctly applied."});
+
+  // 5. Relational operands
+  let badRel=false;
+  for(let i=0;i<tokens.length;i++){
+    if(tokens[i].type===TT.RELOP){
+      const prev=tokens[i-1],next=tokens[i+1];
+      const valid=t=>t&&[TT.IDENTIFIER,TT.NUMBER,TT.BOOL,TT.RPAREN,TT.LPAREN].includes(t.type);
+      if(!valid(prev)||!valid(next)){badRel=true;break;}
+    }
+  }
+  checks.push(badRel
+    ?{status:'fail',rule:'Relational Operator Operands',msg:'A relational operator is missing an operand on one side.'}
+    :{status:'pass',rule:'Relational Operator Operands',msg:'All relational operators have valid operands on both sides.'});
+
+  // 6. Expression termination
+  const last=real[real.length-1];
+  checks.push([TT.IDENTIFIER,TT.NUMBER,TT.BOOL,TT.RPAREN].includes(last.type)
+    ?{status:'pass',rule:'Expression Termination',msg:"Expression ends correctly with '"+last.value+"'."}
+    :{status:'fail',rule:'Expression Termination',msg:"Expression ends with operator '"+last.value+"'. Expected an operand or ')'."}
+  );
+
+  // 7. Expression start
+  const first=real[0];
+  checks.push([TT.IDENTIFIER,TT.NUMBER,TT.BOOL,TT.LPAREN,TT.NOT].includes(first.type)
+    ?{status:'pass',rule:'Expression Start',msg:"Expression begins correctly with '"+first.value+"'."}
+    :{status:'fail',rule:'Expression Start',msg:"Expression begins with '"+first.value+"'. Expected identifier, literal, '!', or '('."}
+  );
+
+  // 8. Variables found
+  if(variables.size>0){
+    checks.push({status:'info',rule:'Variables Detected',msg:'Found '+variables.size+' variable(s): '+[...variables].join(', ')+'.'});
+  }
+
+  // 9. Mixed AND / OR warning
+  const hasAnd=tokens.some(t=>t.type===TT.LOGOP&&t.value==='&&');
+  const hasOr =tokens.some(t=>t.type===TT.LOGOP&&t.value==='||');
+  if(hasAnd&&hasOr){
+    checks.push({status:'warn',rule:'Mixed AND/OR Precedence',msg:'Both && and || used. && binds tighter than ||. Use parentheses to clarify intent if needed.'});
+  }
+
+  return checks;
+}
+
+/* ==============================================================
+   EVALUATOR
+   ============================================================== */
+function evalAST(node,env){
+  if(!node)return undefined;
+  if(node.kind==='BOOL')return node.value==='true';
+  if(node.kind==='NUMBER')return parseFloat(node.value);
+  if(node.kind==='IDENT')return env[node.value];
+  if(node.kind==='ERROR')return undefined;
+  if(node.kind==='NOT'){const v=evalAST(node.left,env);return v===undefined?undefined:!v;}
+  const L=evalAST(node.left,env),R=evalAST(node.right,env);
+  if(node.kind==='LOGOP'){if(node.value==='&&')return!!L&&!!R;if(node.value==='||')return!!L||!!R;}
+  if(node.kind==='RELOP'){
+    if(node.value==='>')return L>R;if(node.value==='<')return L<R;
+    if(node.value==='==')return L==R;if(node.value==='!=')return L!=R;
+    if(node.value==='>=')return L>=R;if(node.value==='<=')return L<=R;
+  }
+  return undefined;
+}
+
+/* ==============================================================
+   AST RENDERER
+   ============================================================== */
+let nodeCount=0;
+function renderAST(node,depth=0){
+  if(!node)return '';
+  nodeCount++;
+  const kindClass={LOGOP:'node-op',RELOP:'node-relop',NOT:'node-not',IDENT:'node-id',NUMBER:'node-num',BOOL:'node-bool',ERROR:'node-id'}[node.kind]||'node-id';
+  const kindLabel={LOGOP:'LogOp',RELOP:'RelOp',NOT:'NOT',IDENT:'Ident',NUMBER:'Num',BOOL:'Bool',ERROR:'Error'}[node.kind]||node.kind;
+  const children=[node.left,node.right].filter(Boolean);
+  let childrenHTML='';
+  if(children.length>0){
+    const childHTMLs=children.map(c=>`<div class="connector"><div class="child-v-line"></div>${renderAST(c,depth+1)}</div>`).join('');
+    childrenHTML=`<div><div class="connector-line-v"></div></div><div class="children-row">${childHTMLs}</div>`;
+  }
+  return `<div class="tree-node"><div class="node-box ${kindClass}" title="${node.kind}: ${esc(node.value)}"><span class="node-label">${esc(node.value)}</span><span class="node-kind">${kindLabel}</span></div>${childrenHTML}</div>`;
+}
+
+function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+
+/* ==============================================================
+   TRUTH TABLE
+   ============================================================== */
+function buildTruthTable(ast,variables){
+  const vars=[...variables].slice(0,4);
+  if(vars.length===0)return null;
+  const rows=[],combos=1<<vars.length;
+  for(let mask=0;mask<combos;mask++){
+    const env={};
+    vars.forEach((v,i)=>env[v]=!!(mask&(1<<(vars.length-1-i))));
+    rows.push({env:{...env},result:evalAST(ast,env)});
+  }
+  return{vars,rows};
+}
+
+/* ==============================================================
+   UI STATE
+   ============================================================== */
+let currentTab='vis';
+function switchTab(tab){
+  currentTab=tab;
+  document.getElementById('tabVis').classList.toggle('active',tab==='vis');
+  document.getElementById('tabTable').classList.toggle('active',tab==='table');
+  document.getElementById('tokenVis').style.display=tab==='vis'?'':'none';
+  document.getElementById('tokenTable').style.display=tab==='table'?'':'none';
+}
+
+function insertOp(op){
+  const ta=document.getElementById('exprInput');
+  const s=ta.selectionStart,e=ta.selectionEnd;
+  // decode HTML entities for actual insertion
+  const div=document.createElement('div');div.innerHTML=op;const raw=div.textContent;
+  ta.value=ta.value.slice(0,s)+raw+ta.value.slice(e);
+  const np=s+raw.length;ta.setSelectionRange(np,np);ta.focus();
+}
+
+function loadExample(idx){
+  document.getElementById('exprInput').value=EXAMPLES[idx];
+}
+
+function copyExpr(){
+  const v=document.getElementById('exprInput').value;
+  if(!v)return;
+  navigator.clipboard.writeText(v).then(()=>{
+    const btn=document.getElementById('copyBtn');
+    btn.textContent='Copied!';
+    setTimeout(()=>btn.innerHTML='&#10697; Copy',1500);
+  });
+}
+
+function clearAll(){
+  document.getElementById('exprInput').value='';
+  resetUI();
+  document.getElementById('compileStatus').textContent='';
+}
+
+function onExprChange(){}
+
+/* ==============================================================
+   COMPILE
+   ============================================================== */
+function compile(){
+  const src=document.getElementById('exprInput').value.trim();
+  const btn=document.getElementById('compileBtn');
+  btn.disabled=true;
+  btn.innerHTML='<div class="spinner"></div> Compiling&hellip;';
+  setTimeout(()=>{
+    runCompiler(src);
+    btn.disabled=false;
+    btn.innerHTML='<span>&#9654;</span> Compile &amp; Analyze';
+  },120);
+}
+
+function runCompiler(src){
+  const{tokens,errors:lexErrors}=lex(src);
+  const parser=new Parser(tokens);
+  let ast=null,parseErrors=[];
+  try{ast=parser.parse();parseErrors=parser.errors;}
+  catch(e){parseErrors.push(new ParseError(e.message,0));}
+  const real=tokens.filter(t=>t.type!==TT.EOF);
+  const semChecks=analyze(ast,real);
+  const variables=new Set();
+  tokens.forEach(t=>{if(t.type===TT.IDENTIFIER)variables.add(t.value);});
+  let evalResult=undefined;
+  if(parseErrors.length===0&&lexErrors.length===0&&ast){
+    const pureConst=real.every(t=>t.type===TT.BOOL||t.type===TT.NOT||t.type===TT.LPAREN||t.type===TT.RPAREN||t.type===TT.LOGOP||t.type===TT.RELOP||t.type===TT.NUMBER);
+    if(pureConst&&variables.size===0)evalResult=evalAST(ast,{});
+  }
+  renderTokens(tokens);
+  nodeCount=0;
+  renderASTPanel(ast);
+  const nc=nodeCount;
+  renderSemantic(semChecks);
+  renderErrors([...lexErrors,...parseErrors]);
+  renderStatusBar(real.length,nc,lexErrors.length+parseErrors.length,semChecks,evalResult);
+  renderTruthTable(ast,variables);
+  document.getElementById('statusBar').style.display='flex';
+  document.getElementById('compileStatus').textContent='Compiled at '+new Date().toLocaleTimeString();
+}
+
+/* ==============================================================
+   RENDER TOKENS
+   ============================================================== */
+function tokenColor(type){
+  return{IDENTIFIER:'#4f8ef7',NUMBER:'#22d3a5',RELOP:'#a855f7',LOGOP:'#00d4ff',NOT:'#fb923c',LPAREN:'#fbbf24',RPAREN:'#fbbf24',BOOL:'#a855f7',EOF:'#4a5568'}[type]||'#e8eaf6';
+}
+function renderTokens(tokens){
+  const grid=document.getElementById('tokenGrid');
+  const body=document.getElementById('tokenTableBody');
+  const all=tokens;
+  if(all.filter(t=>t.type!==TT.EOF).length===0){
+    grid.innerHTML='<div class="empty-state"><div class="icon">&#9672;</div><p>No tokens found</p></div>';
+    body.innerHTML='';return;
+  }
+  grid.innerHTML=all.map((t,i)=>`<div class="token-item tk-${t.type}" style="animation-delay:${i*25}ms" title="${t.type} | ${t.value} | pos:${t.pos}"><div class="token-index">${i}</div><div class="token-val">${esc(t.value)}</div><div class="token-type">${t.type}</div></div>`).join('');
+  body.innerHTML=all.map((t,i)=>`<tr><td style="padding:8px 12px;color:var(--text-dim)">${i}</td><td style="padding:8px 12px;font-family:'JetBrains Mono',monospace;color:${tokenColor(t.type)}">${esc(t.value)}</td><td style="padding:8px 12px;color:var(--text-secondary)">${t.type}</td><td style="padding:8px 12px;color:var(--text-dim)">${t.pos}</td></tr>`).join('');
+}
+
+/* ==============================================================
+   RENDER AST
+   ============================================================== */
+function renderASTPanel(ast){
+  const c=document.getElementById('astContainer');
+  if(!ast){c.innerHTML='<div class="empty-state"><div class="icon">&#127807;</div><p>Could not build AST &mdash; check errors</p></div>';return;}
+  c.innerHTML='<div style="display:flex;justify-content:center;padding-bottom:16px">'+renderAST(ast)+'</div>';
+}
+
+/* ==============================================================
+   RENDER SEMANTIC
+   ============================================================== */
+function renderSemantic(checks){
+  const list=document.getElementById('semanticList');
+  const pc=document.getElementById('semPassCount');
+  const pass=checks.filter(c=>c.status==='pass').length;
+  const fail=checks.filter(c=>c.status==='fail').length;
+  pc.textContent=pass+' passed \u00B7 '+fail+' failed';
+  if(checks.length===0){list.innerHTML='<div class="empty-state"><div class="icon">&#128300;</div><p>No checks</p></div>';return;}
+  const icon={pass:'&#10003;',fail:'&#10007;',warn:'&#9888;',info:'&#9432;'};
+  list.innerHTML=checks.map((c,i)=>`<div class="sem-item ${c.status}" style="animation-delay:${i*35}ms"><div class="sem-icon">${icon[c.status]||'?'}</div><div class="sem-body"><div class="sem-rule">${esc(c.rule)}</div><div class="sem-msg">${esc(c.msg)}</div></div></div>`).join('');
+}
+
+/* ==============================================================
+   RENDER ERRORS
+   ============================================================== */
+function renderErrors(errors){
+  const list=document.getElementById('errorList');
+  const ec=document.getElementById('errCount');
+  ec.textContent=errors.length+' error'+(errors.length!==1?'s':'');
+  if(errors.length===0){list.innerHTML='<div class="empty-state"><div class="icon">&#10003;</div><p>No errors &mdash; expression is valid</p></div>';return;}
+  list.innerHTML=errors.map((e,i)=>`<div class="error-item" style="animation-delay:${i*35}ms"><div class="error-loc">pos:${e.pos!==undefined?e.pos:'?'}</div><div class="error-msg">&#128308; ${esc(e.msg)}</div></div>`).join('');
+}
+
+/* ==============================================================
+   RENDER STATUS BAR
+   ============================================================== */
+function renderStatusBar(tokenCount,nc,errCount,semChecks,evalResult){
+  document.getElementById('statTokens').textContent=tokenCount;
+  document.getElementById('statNodes').textContent=nc;
+  document.getElementById('statErrors').textContent=errCount;
+  const errChip=document.getElementById('statErrChip');
+  errChip.className='stat-chip '+(errCount>0?'err':'ok');
+  document.getElementById('statErrIcon').innerHTML=errCount>0?'&#10007;':'&#10003;';
+  document.getElementById('statErrors').style.color=errCount>0?'var(--accent-red)':'var(--accent-green)';
+  const pass=semChecks.filter(c=>c.status==='pass').length;
+  document.getElementById('statChecks').textContent=pass+'/'+semChecks.length;
+  const resEl=document.getElementById('statResult');
+  const resIco=document.getElementById('statResultIcon');
+  const resCh=document.getElementById('statResultChip');
+  if(evalResult===true){resEl.textContent='TRUE';resEl.style.color='var(--accent-green)';resIco.innerHTML='&#10003;';resCh.className='stat-chip ok';}
+  else if(evalResult===false){resEl.textContent='FALSE';resEl.style.color='var(--accent-red)';resIco.innerHTML='&#10007;';resCh.className='stat-chip err';}
+  else{resEl.innerHTML='&ndash;';resEl.style.color='var(--text-dim)';resIco.innerHTML='&#8857;';resCh.className='stat-chip';}
+}
+
+/* ==============================================================
+   RENDER TRUTH TABLE
+   ============================================================== */
+function renderTruthTable(ast,variables){
+  const panel=document.getElementById('truthPanel');
+  const note=document.getElementById('truthNote');
+  if(variables.size===0||!ast){panel.style.display='none';return;}
+  const data=buildTruthTable(ast,variables);
+  if(!data){panel.style.display='none';return;}
+  panel.style.display='';
+  note.textContent=(variables.size>4?'Showing first 4 of '+variables.size+' variables':data.rows.length+' combinations');
+  const tbl=document.getElementById('truthTable');
+  tbl.querySelector('thead').innerHTML='<tr>'+data.vars.map(v=>'<th>'+esc(v)+'</th>').join('')+'<th style="color:var(--accent-purple)">Result</th></tr>';
+  tbl.querySelector('tbody').innerHTML=data.rows.map(row=>{
+    const vc=data.vars.map(v=>`<td class="cell-var ${row.env[v]?'cell-true':'cell-false'}">${row.env[v]?'T':'F'}</td>`).join('');
+    const r=row.result;
+    const rc=r===true?'cell-true':r===false?'cell-false':'';
+    const rt=r===true?'TRUE':r===false?'FALSE':'&mdash;';
+    return `<tr>${vc}<td class="cell-result ${rc}">${rt}</td></tr>`;
+  }).join('');
+}
+
+/* ==============================================================
+   RESET
+   ============================================================== */
+function resetUI(){
+  document.getElementById('tokenGrid').innerHTML='<div class="empty-state"><div class="icon">&#9672;</div><p>No tokens yet</p></div>';
+  document.getElementById('tokenTableBody').innerHTML='';
+  document.getElementById('astContainer').innerHTML='<div class="empty-state"><div class="icon">&#127807;</div><p>AST will appear here</p></div>';
+  document.getElementById('semanticList').innerHTML='<div class="empty-state"><div class="icon">&#128300;</div><p>Semantic checks will appear here</p></div>';
+  document.getElementById('errorList').innerHTML='<div class="empty-state"><div class="icon">&#10003;</div><p>No errors detected</p></div>';
+  document.getElementById('statusBar').style.display='none';
+  document.getElementById('truthPanel').style.display='none';
+  document.getElementById('semPassCount').textContent='';
+  document.getElementById('errCount').textContent='';
+}
+
+/* ==============================================================
+   KEYBOARD SHORTCUT
+   ============================================================== */
+document.addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&e.key==='Enter')compile();});
+
+/* Load first example on page load */
+window.addEventListener('load',()=>{
+  document.getElementById('exprInput').value=EXAMPLES[0];
+});
+</script>
+</body>
+</html>
