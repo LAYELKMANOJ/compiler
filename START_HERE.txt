@@ -1,0 +1,9 @@
+BOOLEAN EXPRESSION COMPILER — CLEAN INPUT PACKAGE
+
+1. Open this extracted folder in VS Code.
+2. Open a NEW terminal. The terminal path must end with Boolean-Expression-Compiler-CLEAN-INPUT.
+3. Run: python -m http.server 8000 --bind 127.0.0.1
+4. Open Chrome: http://127.0.0.1:8000/index.html
+5. Input should be empty on startup. Type: a > 5 && b < 10
+
+The header attribution to Member 4 has been removed. Lexer, parser, semantic analyzer and main.js are included. Do not open the HTML by double-clicking it; use the local server above.
