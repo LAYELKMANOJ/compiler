@@ -1,5 +1,5 @@
 # Boolean Expression Compiler
-   
+     
 A browser-based compiler front-end for Boolean expressions.
 
 ## Files
