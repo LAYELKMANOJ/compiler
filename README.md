@@ -22,3 +22,4 @@ Then open `http://localhost:8000/index.html`. Python is only being used here to 
 
 ## Team note
 Review and test the separated modules before submission. The semantic checks are a starter implementation and should not be described as full declaration/type checking unless those features are implemented.
+ 
